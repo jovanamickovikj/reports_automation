@@ -10,8 +10,8 @@ PROJECT_DIR = Path(__file__).resolve().parent.parent
 # ---------------------------------------------------------------
 # Business rules for step 2 (processing). If a rule changes, change it only here.
 # ---------------------------------------------------------------
-SUSPENSIONS_LIMIT = 1500   # max MSISDNs per day for step S3 (sum of BAN_Nr_msisdns, not the BAN count)
-IVR_LIMIT = 10           # max MSISDNs per day for step M (IVR only, it is not added to SUSP)
+SUSPENSIONS_LIMIT = 3000   # max MSISDNs per day for step S3 (sum of BAN_Nr_msisdns, not the BAN count)
+IVR_LIMIT = 6000         # max MSISDNs per day for step M (IVR only, it is not added to SUSP)
 
 # Codes in column COL_ACTIVITY_CODE
 STEP_CHURN = "C"
