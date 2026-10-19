@@ -1,11 +1,13 @@
 """Run 1 of 2: download the newest report, process it and save the SUSPENSIONS files.
 
-The IVR files and the mail are done by the second run (IvrRun.py), which is scheduled separately.
+The IVR file is calculated here too, but it is only saved (and the mail is only sent) by the second run
+(IvrRun.py), which is scheduled separately.
 """
 import logging
 from pathlib import Path
 
 from .AdxFileSaver import AdxFileSaver
+from .PendingIvr import PendingIvr
 from .ReportPortal import ReportPortal
 from .ReportProcessor import ReportProcessor
 from .Settings import Settings
@@ -46,11 +48,17 @@ class SuspensionsRun:
         self.process_downloaded_report(path)
 
     def process_downloaded_report(self, path: Path) -> None:
-        """Processes the report, saves the suspensions CSV and remembers the report for the IVR run."""
+        """Processes the report, saves the suspensions CSV and leaves the finished IVR file and mail for the IVR run."""
         try:
             result = self.report_processor.process_report(path)         # 2. processing
-            self.file_saver.save_suspensions_files(result)              # 3. save the suspensions CSV (IVR comes in IvrRun)
-            self.state_controller.save_pending_report(path)             # tell IvrRun which report to use
+            self.file_saver.save_suspensions_files(result)              # 3. save the suspensions CSV (IVR is saved by IvrRun)
+            self.state_controller.save_pending_ivr(PendingIvr(          # leave the IVR file and the mail ready for IvrRun
+                report_path=path,
+                activity_date=result.activity_date,
+                mail_text=result.mail_text,
+                ivr_csv_text=self.file_saver.build_ivr_csv_text(result),
+                ivr_bans=len(result.ivr_postponed),
+            ))
         except Exception:
             log.exception("Processing / saving failed: %s", path)
 

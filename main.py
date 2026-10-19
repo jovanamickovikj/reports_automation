@@ -7,7 +7,7 @@ Report pipeline - run 1 of 2 (suspensions).
                                     saves BOTH suspensions and IVR, the mail is only printed, not sent
 
 Each check downloads only the NEWEST new report. Older new reports are marked as seen and skipped.
-This run saves the SUSPENSIONS files and remembers the report in pending_ivr.json.
+This run saves the SUSPENSIONS files and leaves the finished IVR file and the mail ready in pending_ivr.json.
 main_ivr.py (scheduled separately) then saves the IVR files and sends the mail.
 """
 import argparse
