@@ -1,5 +1,11 @@
-"""Step 3 of the pipeline: save the CSV files for the ADX job."""
+"""Step 3 of the pipeline: save the CSV files for the ADX job.
+
+Every file is saved twice:
+  - inside  <output_dir>/<activity date>_odlozuvanje suspenzii/   (keeps its own name)
+  - outside <output_dir>/MCD_col_mass_chng.csv                     (same level as the folder, gets overwritten)
+"""
 import logging
+import shutil
 from pathlib import Path
 
 from . import config
@@ -29,22 +35,24 @@ def write_adx_csv(postponed, new_date, file_path: Path) -> None:
         csv_file.write("".join(line + "\r\n" for line in lines))
 
 
-def save_csv_files(result: ProcessingResult, output_dir: Path) -> list[Path]:
-    """
-    Writes one CSV for suspensions and one for IVR into <output_dir>/<activity date>_odlozuvanje suspenzii/,
-    only for the ones that have postponed customers. Returns the saved files (empty list = nothing postponed).
-    """
+def _save_one(result: ProcessingResult, output_dir: Path, file_name: str, postponed) -> list[Path]:
+    """Saves one CSV in the dated folder and a copy outside it. Returns the saved files (empty = nothing postponed)."""
+    if len(postponed) == 0:
+        log.info("Nothing postponed for %s - no CSV file.", file_name)
+        return []
     folder = output_dir / f"{result.activity_date:%d.%m.%Y}_odlozuvanje suspenzii"
-    saved_files = []
-    for file_name, postponed in [(config.SUSPENSIONS_CSV_NAME, result.suspensions_postponed),
-                                 (config.IVR_CSV_NAME, result.ivr_postponed)]:
-        if len(postponed) == 0:
-            continue
-        folder.mkdir(parents=True, exist_ok=True)
-        write_adx_csv(postponed, result.new_date, folder / file_name)
-        print("tuka: ", output_dir)
-        saved_files.append(folder / file_name)
-        log.info("Saved: %s (%d BANs)", folder / file_name, len(postponed))
-    if not saved_files:
-        log.info("Nothing postponed - no CSV file.")
-    return saved_files
+    folder.mkdir(parents=True, exist_ok=True)
+    inside = folder / file_name
+    outside = output_dir / config.OUTSIDE_CSV_NAME
+    write_adx_csv(postponed, result.new_date, inside)
+    shutil.copyfile(inside, outside)
+    log.info("Saved: %s and %s (%d BANs)", inside, outside, len(postponed))
+    return [inside, outside]
+
+
+def save_suspensions_files(result: ProcessingResult, output_dir: Path) -> list[Path]:
+    return _save_one(result, output_dir, config.SUSPENSIONS_CSV_NAME, result.suspensions_postponed)
+
+
+def save_ivr_files(result: ProcessingResult, output_dir: Path) -> list[Path]:
+    return _save_one(result, output_dir, config.IVR_CSV_NAME, result.ivr_postponed)
