@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 
 
-class DateCalculator:
+class BusinessDaysCalculator:
     """Adds business or calendar days to a datetime.
 
     Special days = weekends (Sat/Sun) + holidays loaded from the Excel file.
