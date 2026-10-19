@@ -42,6 +42,9 @@ REQUIRED_COLUMNS = [
 SUSPENSIONS_CSV_NAME = "MCD_col_mass_chng_suspensions.csv"
 IVR_CSV_NAME = "MCD_col_mass_chng_ivr.csv"
 
+# Copy that is saved next to the dated folder (same level). Suspensions saves it first, IVR overwrites it later.
+OUTSIDE_CSV_NAME = "MCD_col_mass_chng.csv"
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -54,6 +57,7 @@ class Settings:
     mail_cc: str             # optional, can be empty
     check_interval_min: int  # only used with --loop
     state_file: Path         # remembers which reports were already downloaded
+    pending_file: Path       # remembers the report that main_ivr.py still has to process
     log_file: Path
 
 
@@ -90,5 +94,6 @@ def load_settings() -> Settings:
         mail_cc=os.getenv("MAIL_CC", ""),
         check_interval_min=int(os.getenv("CHECK_INTERVAL_MIN", "60")),
         state_file=PROJECT_DIR / "seen_reports.json",
+        pending_file=PROJECT_DIR / "pending_ivr.json",
         log_file=PROJECT_DIR / "pipeline.log",
     )

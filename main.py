@@ -1,12 +1,14 @@
 """
-Report pipeline - entry point.
+Report pipeline - run 1 of 2 (suspensions).
 
-    python main.py                  check once (schedule this hourly with Windows Task Scheduler)
+    python main.py                  check once (schedule this with Windows Task Scheduler)
     python main.py --loop           keep running, check every CHECK_INTERVAL_MIN minutes
-    python main.py --process FILE   run only step 2 and 3 (processing + saving) on a file that is already
-                                    downloaded; the mail is only printed, not sent
+    python main.py --process FILE   run only step 2 and 3 on a file that is already downloaded;
+                                    saves BOTH suspensions and IVR, the mail is only printed, not sent
 
 Each check downloads only the NEWEST new report. Older new reports are marked as seen and skipped.
+This run saves the SUSPENSIONS files and remembers the report in pending_ivr.json.
+main_ivr.py (scheduled separately) then saves the IVR files and sends the mail.
 """
 import argparse
 import logging
@@ -20,9 +22,8 @@ import truststore
 from pipeline.config import Settings, load_settings
 from pipeline.portal import download, find_reports, make_session, newest_report
 from pipeline.processing import process_report
-from pipeline.saves import save_csv_files
-from pipeline.send_mail import send_mail
-from pipeline.state import load_seen, save_seen
+from pipeline.saves import save_ivr_files, save_suspensions_files
+from pipeline.state import load_seen, save_pending, save_seen
 
 log = logging.getLogger("pipeline")
 
@@ -62,19 +63,14 @@ def check_once(settings: Settings) -> None:
 
     try:
         result = process_report(path)                           # 2. processing
-        save_csv_files(result, settings.output_dir)             # 3. save the CSV files for ADX
-        send_mail(                                              # 4. send the automatic mail
-            to=settings.mail_to,
-            cc=settings.mail_cc,
-            subject=f"Zakazani aktivnosti za {result.activity_date:%d.%m.%Y} se sledni:",
-            body=result.mail_text,
-        )
+        save_suspensions_files(result, settings.output_dir)     # 3. save the suspensions CSV (IVR comes in main_ivr.py)
+        save_pending(settings.pending_file, path)               # tell main_ivr.py which report to use
     except Exception:
-        log.exception("Processing / saving / mail failed: %s", path)
+        log.exception("Processing / saving failed: %s", path)
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Download the newest report from the portal and process it.")
+    parser = argparse.ArgumentParser(description="Download the newest report from the portal and save the suspensions files.")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--loop", action="store_true", help="run forever, check every CHECK_INTERVAL_MIN")
     mode.add_argument("--process", metavar="FILE", type=Path, help="only run processing + saving on FILE")
@@ -86,7 +82,8 @@ def main() -> int:
 
     if args.process:
         result = process_report(args.process)
-        save_csv_files(result, settings.output_dir)
+        save_suspensions_files(result, settings.output_dir)
+        save_ivr_files(result, settings.output_dir)
         print("\n===== MAIL (not sent) =====")
         print(result.mail_text)
         return 0
