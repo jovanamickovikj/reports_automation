@@ -85,9 +85,10 @@ Log: `pipeline.log`.
   Business days: weekends + `special_days_data/Special_days.xlsx` (keep it updated).
 - **Limits (sum of MSISDNs):** Suspensions S3 = 3000, IVR (M) = 6000. Above the limit the oldest
   residential customers (by `Account_Act_Date`) are postponed.
-- **Churn (C):** counted only, never postponed; in the mail only when the activity day is 15, 20, 25 or 30.
+- **Churn (C):** every BAN with code C on the activity date, any status, KEY included. Counted only,
+  never postponed; in the mail only when the activity day is 15, 20, 25 or 30.
 - **SMS (SM):** only the number of BANs, PRI vs BUS.
-- Business types: BUS, VBB, VPN, EPN. KEY accounts are excluded. Duplicate BANs are removed.
+- Business types: BUS, VBB, VPN, EPN. KEY accounts are excluded (except in Churn). Duplicate BANs are removed.
 
 ## Output
 

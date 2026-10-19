@@ -69,11 +69,15 @@ class ReportProcessor:
     # The four reports
     # ---------------------------------------------------------------
     def build_churn_report(self, table, date_):
-        """Churn (C): open (O) only, without KEY. It is only counted, never postponed."""
-        rows = table[(table["COL_ACTIVITY_CODE"] == BusinessRules.STEP_CHURN) &
-                     (table["STEP_DATE"] == date_) &
-                     (table["BAN_STATUS"] == BusinessRules.STATUS_OPEN) &
-                     ~table["IS_KEY"]]
+        """Churn (C): every BAN with code C on the activity date (any status, KEY included).
+        It is only counted, never postponed."""
+        rows_with_churn_code = table[table["COL_ACTIVITY_CODE"] == BusinessRules.STEP_CHURN]
+        rows = rows_with_churn_code[rows_with_churn_code["STEP_DATE"] == date_]
+        log.info("Churn on %s: %d BAN(s) (the report has %d BAN(s) with code %s on all dates)",
+                 date_, len(rows), len(rows_with_churn_code), BusinessRules.STEP_CHURN)
+        if len(rows) == 0:
+            log.warning("Churn: no BAN with code %s on %s. Activity codes found in the report: %s",
+                        BusinessRules.STEP_CHURN, date_, sorted(table["COL_ACTIVITY_CODE"].unique()))
         return {
             "residential": self.count_bans_and_msisdns(rows[rows["GROUP"] == BusinessRules.GROUP_RESIDENTIAL]),
             "business": self.count_bans_and_msisdns(rows[rows["GROUP"] == BusinessRules.GROUP_BUSINESS]),
