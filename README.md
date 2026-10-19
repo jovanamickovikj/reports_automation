@@ -86,7 +86,7 @@ Log: `pipeline.log`.
 - **Limits (sum of MSISDNs):** Suspensions S3 = 3000, IVR (M) = 6000. Above the limit the oldest
   residential customers (by `Account_Act_Date`) are postponed.
 - **Churn (C):** every BAN with code C on the activity date, any status, KEY included. Counted only,
-  never postponed; in the mail only when the activity day is 15, 20, 25 or 30.
+  never postponed; in the mail only when there is at least one churn BAN for the activity date.
 - **SMS (SM):** only the number of BANs, PRI vs BUS.
 - Business types: BUS, VBB, VPN, EPN. KEY accounts are excluded (except in Churn). Duplicate BANs are removed.
 
