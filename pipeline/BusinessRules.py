@@ -25,9 +25,6 @@ STATUS_OPEN = "O"                   # BAN_STATUS
 IVR_ACTIVE = "IVR"                  # FOLLOW_UP_TYPE - active customers
 IVR_SUSPENDED = "SUSP"              # FOLLOW_UP_TYPE - suspended customers
 
-# Churn goes into the mail only when the day of the month of the activity date is one of these
-CHURN_MAIL_DAYS = {15, 20, 25, 30}
-
 # Columns that are loaded from the report (all other columns are ignored)
 REQUIRED_COLUMNS = [
     "BAN", "BAN_STATUS", "DEBTOR_STATUS", "ACCOUNT_TYPE", "BAN_Nr_msisdns",

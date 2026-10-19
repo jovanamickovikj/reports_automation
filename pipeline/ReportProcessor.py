@@ -50,9 +50,10 @@ class ReportProcessor:
         log.info("Report date: %s | activities for: %s | postponing to: %s", report_date, activity_date, new_date)
         log.info("BANs loaded: %d | duplicates removed: %d", len(table), duplicates_removed)
 
-        churn = None
-        if activity_date.day in BusinessRules.CHURN_MAIL_DAYS:
-            churn = self.build_churn_report(table, activity_date)
+        # Churn goes into the mail only when there is at least one churn BAN for the activity date
+        churn = self.build_churn_report(table, activity_date)
+        if churn["residential"].bans + churn["business"].bans == 0:
+            churn = None
         suspensions = self.build_suspensions_report(table, activity_date, new_date)
         sms = self.build_sms_report(table, activity_date)
         ivr = self.build_ivr_report(table, activity_date, new_date)

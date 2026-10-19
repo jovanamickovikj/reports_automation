@@ -4,7 +4,7 @@
 class MailTextBuilder:
 
     def build_mail_text(self, activity_date, new_date, churn, suspensions, sms, ivr) -> str:
-        """Returns the whole mail as one string. Churn (churn=None) is skipped on days when it is not due."""
+        """Returns the whole mail as one string. Churn (churn=None) is skipped when there is no churn for the activity date."""
         items = []
 
         if churn is not None:
