@@ -1,47 +1,40 @@
 # Reports automation
 
 Downloads the newest "MAZ BAN Open Invoices" report from the portal, calculates the daily counts,
-postpones suspensions / IVR above the limits, saves CSV files for ADX and sends an automatic mail.
+postpones suspensions / IVR above the limits, saves the CSV files for ADX and prepares an automatic mail.
 
-The work is split into two runs, each started separately by Windows Task Scheduler:
-
-1. `main.py` – downloads and processes the report, saves the **suspensions** files
-2. `main_ivr.py` – saves the **IVR** files and sends the mail
+This is the **single-run version**: one `main.py` does everything in one go. It saves both CSV files
+(suspensions and IVR) and opens the mail in Outlook as a **draft**. The mail is **not sent**: someone
+checks it and presses Send.
 
 ## Flow
 
-1. `pipeline/ReportPortal.py` – connects to the portal and downloads the newest new report into `report/` (run 1)
-2. `pipeline/ReportProcessor.py` – builds the 4 reports (Churn, Suspensions S3, SMS, IVR) and decides who is postponed (run 1 only).
+1. `pipeline/ReportPortal.py` – connects to the portal and downloads the newest new report into `report/`
+2. `pipeline/ReportProcessor.py` – builds the 4 reports (Churn, Suspensions S3, SMS, IVR) and decides who is postponed.
    It uses `ReportLoader.py` to read the report into a clean table and `MailTextBuilder.py` to write the mail text.
-3. `pipeline/AdxFileSaver.py` – writes the ADX CSV files, only if something is postponed (run 1 saves the suspensions file, run 2 saves the IVR file that run 1 already calculated)
-4. `pipeline/MailSender.py` – sends the mail through Outlook (run 2)
+3. `pipeline/AdxFileSaver.py` – writes both ADX CSV files (suspensions and IVR), only if something is postponed
+4. `pipeline/MailSender.py` – opens the mail in Outlook as a draft (it is not sent)
 
-`pipeline/StateController.py` keeps two small state files:
-
-- `seen_reports.json` – the reports that were already downloaded
-- `pending_ivr.json` – what `main.py` leaves ready for `main_ivr.py`: the finished IVR file, the mail text and the activity date
+`pipeline/StateController.py` keeps one small state file, `seen_reports.json`: the reports that were already downloaded.
 
 ## Code structure
 
 Every file holds one class and is named after it. The class methods are named after what they do
-(`find_reports`, `download_report`, `save_ivr_files`, ...), and the two "run" classes read like a checklist.
+(`find_reports`, `download_report`, `save_ivr_files`, ...), and `ReportRun` reads like a checklist.
 
 ```
-main.py                    entry point of run 1 (Task Scheduler)
-main_ivr.py                entry point of run 2 (Task Scheduler)
+main.py                    entry point (Task Scheduler)
 BusinessDaysCalculator.py  adds business days (weekends + Special_days.xlsx holidays)
 pipeline/
-  SuspensionsRun.py        run 1: check the portal, download, process, save the suspensions files
-  IvrRun.py                run 2: save the IVR file that run 1 prepared, send the mail
+  ReportRun.py             the run: check the portal, download, process, save both files, open the draft mail
   ReportPortal.py          portal: list the reports, pick the newest, download it
   ReportLoader.py          reads a report file into a clean table (5 small steps)
   ReportProcessor.py       the 4 reports and the postponement of customers above the limits
   MailTextBuilder.py       the text of the mail
   ProcessingResult.py      what processing hands over (dates, mail text, postponed customers)
-  AdxFileSaver.py          writes the CSV files for ADX (in the folder and outside it)
-  MailSender.py            sends the mail through Outlook
-  PendingIvr.py            what run 1 leaves ready for run 2
-  StateController.py       seen_reports.json and pending_ivr.json
+  AdxFileSaver.py          writes the CSV files for ADX
+  MailSender.py            opens the mail in Outlook as a draft
+  StateController.py       seen_reports.json
   Settings.py              settings from the .env file
   BusinessRules.py         limits, codes and file names (change a rule only here)
   LogSetup.py              log file and screen output
@@ -56,28 +49,15 @@ copy .env.example .env        (then fill in .env, including MAIL_TO)
 
 ## Run
 
-Two entry points. Schedule both in Windows Task Scheduler, the second one after the first
-(for example one hour later). The code itself does not wait or sleep between them.
-
 ```
-python main.py          run 1: download + process, saves the SUSPENSIONS files
-python main_ivr.py      run 2: saves the IVR files and sends the mail
-```
-
-`main.py` calculates everything once. It saves the suspensions file and leaves the finished IVR file and the
-mail text in `pending_ivr.json`. `main_ivr.py` does not calculate anything: it saves the IVR file from that
-file and sends the mail. It clears `pending_ivr.json` only after the IVR files are saved and the mail is sent.
-If nothing is pending,
-`main_ivr.py` logs it and exits with a non-zero code, so Task Scheduler shows the run as failed.
-If the mail fails, `pending_ivr.json` stays and `main_ivr.py` can be run again.
-
-Other options:
-
-```
+python main.py                                check the portal once (schedule it in Windows Task Scheduler)
 python main.py --loop                         keep running, check every CHECK_INTERVAL_MIN minutes
-python main.py --process "report\file.xlsx"   process + save both CSVs for a downloaded file, mail is only printed
-python diagnose.py "report\file.xlsx"         print what is in the report for the activity date
+python main.py --process "report\file.xlsx"   process + save both CSVs for a downloaded file, the mail is only printed
 ```
+
+When a new report is found, `main.py` saves the CSV files and the mail window opens in Outlook.
+Check the mail and press Send. Opening the window needs Outlook and a logged-in Windows session
+(a Task Scheduler task must be set to "Run only when user is logged on").
 
 Log: `pipeline.log`.
 
@@ -95,14 +75,12 @@ Log: `pipeline.log`.
 
 ## Output
 
-Each CSV is saved twice in `<OUTPUT_DIR>` (default: Downloads):
+Both CSV files are saved together in `<OUTPUT_DIR>` (default: Downloads), in the folder
+`<activity date>_odlozuvanje suspenzii/`:
 
-- **inside** the folder `<activity date>_odlozuvanje suspenzii/`:
-  `MCD_col_mass_chng_suspensions.csv` (run 1) and `MCD_col_mass_chng_ivr.csv` (run 2)
-- **outside** the folder, at the same level: `MCD_col_mass_chng.csv`, the name ADX needs for `to_do`.
-  Run 1 writes the suspensions file there, run 2 overwrites it with the IVR file.
+- `MCD_col_mass_chng_suspensions.csv`
+- `MCD_col_mass_chng_ivr.csv`
 
-A file is only saved if something is postponed. If a run has nothing postponed, an older
-`MCD_col_mass_chng.csv` is left as it was.
+A file is only saved if something is postponed. Rename the file to `MCD_col_mass_chng.csv` before putting it into `to_do`.
 
 Format: `NS;BAN;BAN_STATUS;DEBTOR_STATUS;STEP;OLD_DATE;NEW_DATE` (no header, `;`, CRLF).

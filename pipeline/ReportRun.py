@@ -1,13 +1,12 @@
-"""Run 1 of 2: download the newest report, process it and save the SUSPENSIONS files.
+"""The one run: download the newest report, process it, save both CSV files and prepare the mail.
 
-The IVR file is calculated here too, but it is only saved (and the mail is only sent) by the second run
-(IvrRun.py), which is scheduled separately.
+The mail is NOT sent: it is opened in Outlook as a draft, so that someone can check it and send it.
 """
 import logging
 from pathlib import Path
 
 from .AdxFileSaver import AdxFileSaver
-from .PendingIvr import PendingIvr
+from .MailSender import MailSender
 from .ReportPortal import ReportPortal
 from .ReportProcessor import ReportProcessor
 from .Settings import Settings
@@ -16,13 +15,14 @@ from .StateController import StateController
 log = logging.getLogger("pipeline")
 
 
-class SuspensionsRun:
+class ReportRun:
 
     def __init__(self, settings: Settings):
         self.settings = settings
         self.state_controller = StateController(settings)
         self.report_processor = ReportProcessor()
         self.file_saver = AdxFileSaver(settings.output_dir)
+        self.mail_sender = MailSender(settings)
 
     def check_once(self) -> None:
         """Look at the portal once; if there are new reports, download and process only the newest."""
@@ -48,22 +48,18 @@ class SuspensionsRun:
         self.process_downloaded_report(path)
 
     def process_downloaded_report(self, path: Path) -> None:
-        """Processes the report, saves the suspensions CSV and leaves the finished IVR file and mail for the IVR run."""
+        """Processes the report, saves the suspensions and IVR CSV files and opens the mail as a draft."""
         try:
             result = self.report_processor.process_report(path)         # 2. processing
-            self.file_saver.save_suspensions_files(result)              # 3. save the suspensions CSV (IVR is saved by IvrRun)
-            self.state_controller.save_pending_ivr(PendingIvr(          # leave the IVR file and the mail ready for IvrRun
-                report_path=path,
-                activity_date=result.activity_date,
-                mail_text=result.mail_text,
-                ivr_csv_text=self.file_saver.build_ivr_csv_text(result),
-                ivr_bans=len(result.ivr_postponed),
-            ))
+            self.file_saver.save_suspensions_files(result)              # 3. save the suspensions CSV
+            self.file_saver.save_ivr_files(result)                      # 3. save the IVR CSV
+            self.mail_sender.create_draft_mail(                         # 4. open the mail as a draft (not sent)
+                result.activity_date, result.mail_text)
         except Exception:
-            log.exception("Processing / saving failed: %s", path)
+            log.exception("Processing / saving / draft mail failed: %s", path)
 
     def process_file_without_mail(self, path: Path) -> None:
-        """For development (python main.py --process FILE): saves BOTH CSV files, the mail is only printed."""
+        """For development (python main.py --process FILE): saves both CSV files, the mail is only printed."""
         result = self.report_processor.process_report(path)
         self.file_saver.save_suspensions_files(result)
         self.file_saver.save_ivr_files(result)

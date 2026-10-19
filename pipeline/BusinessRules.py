@@ -37,6 +37,3 @@ REQUIRED_COLUMNS = [
 # ADX needs the name MCD_col_mass_chng.csv; whoever puts the file into to_do renames it
 SUSPENSIONS_CSV_NAME = "MCD_col_mass_chng_suspensions.csv"
 IVR_CSV_NAME = "MCD_col_mass_chng_ivr.csv"
-
-# Copy that is saved next to the dated folder (same level). Suspensions saves it first, IVR overwrites it later.
-OUTSIDE_CSV_NAME = "MCD_col_mass_chng.csv"
