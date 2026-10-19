@@ -11,15 +11,15 @@ The work is split into two runs, each started separately by Windows Task Schedul
 ## Flow
 
 1. `pipeline/ReportPortal.py` – connects to the portal and downloads the newest new report into `report/` (run 1)
-2. `pipeline/ReportProcessor.py` – builds the 4 reports (Churn, Suspensions S3, SMS, IVR) and decides who is postponed (both runs).
+2. `pipeline/ReportProcessor.py` – builds the 4 reports (Churn, Suspensions S3, SMS, IVR) and decides who is postponed (run 1 only).
    It uses `ReportLoader.py` to read the report into a clean table and `MailTextBuilder.py` to write the mail text.
-3. `pipeline/AdxFileSaver.py` – writes the ADX CSV files, only if something is postponed (run 1: suspensions, run 2: IVR)
+3. `pipeline/AdxFileSaver.py` – writes the ADX CSV files, only if something is postponed (run 1 saves the suspensions file, run 2 saves the IVR file that run 1 already calculated)
 4. `pipeline/MailSender.py` – sends the mail through Outlook (run 2)
 
 `pipeline/StateController.py` keeps two small state files:
 
 - `seen_reports.json` – the reports that were already downloaded
-- `pending_ivr.json` – the report that `main.py` processed and `main_ivr.py` still has to process
+- `pending_ivr.json` – what `main.py` leaves ready for `main_ivr.py`: the finished IVR file, the mail text and the activity date
 
 ## Code structure
 
@@ -32,7 +32,7 @@ main_ivr.py                entry point of run 2 (Task Scheduler)
 BusinessDaysCalculator.py  adds business days (weekends + Special_days.xlsx holidays)
 pipeline/
   SuspensionsRun.py        run 1: check the portal, download, process, save the suspensions files
-  IvrRun.py                run 2: process the same report, save the IVR files, send the mail
+  IvrRun.py                run 2: save the IVR file that run 1 prepared, send the mail
   ReportPortal.py          portal: list the reports, pick the newest, download it
   ReportLoader.py          reads a report file into a clean table (5 small steps)
   ReportProcessor.py       the 4 reports and the postponement of customers above the limits
@@ -40,6 +40,7 @@ pipeline/
   ProcessingResult.py      what processing hands over (dates, mail text, postponed customers)
   AdxFileSaver.py          writes the CSV files for ADX (in the folder and outside it)
   MailSender.py            sends the mail through Outlook
+  PendingIvr.py            what run 1 leaves ready for run 2
   StateController.py       seen_reports.json and pending_ivr.json
   Settings.py              settings from the .env file
   BusinessRules.py         limits, codes and file names (change a rule only here)
@@ -63,8 +64,10 @@ python main.py          run 1: download + process, saves the SUSPENSIONS files
 python main_ivr.py      run 2: saves the IVR files and sends the mail
 ```
 
-`main.py` remembers the report in `pending_ivr.json`. `main_ivr.py` processes that same report,
-and clears the file only after the IVR files are saved and the mail is sent. If nothing is pending,
+`main.py` calculates everything once. It saves the suspensions file and leaves the finished IVR file and the
+mail text in `pending_ivr.json`. `main_ivr.py` does not calculate anything: it saves the IVR file from that
+file and sends the mail. It clears `pending_ivr.json` only after the IVR files are saved and the mail is sent.
+If nothing is pending,
 `main_ivr.py` logs it and exits with a non-zero code, so Task Scheduler shows the run as failed.
 If the mail fails, `pending_ivr.json` stays and `main_ivr.py` can be run again.
 
