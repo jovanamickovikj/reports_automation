@@ -10,15 +10,41 @@ The work is split into two runs, each started separately by Windows Task Schedul
 
 ## Flow
 
-1. `pipeline/portal.py` – downloads the newest new report into `report/` (run 1)
-2. `pipeline/processing.py` – cleans the data, builds the 4 reports (Churn, Suspensions S3, SMS, IVR), decides who is postponed (both runs)
-3. `pipeline/saves.py` – writes the ADX CSV files, only if something is postponed (run 1: suspensions, run 2: IVR)
-4. `pipeline/send_mail.py` – sends the mail through Outlook (run 2)
+1. `pipeline/ReportPortal.py` – connects to the portal and downloads the newest new report into `report/` (run 1)
+2. `pipeline/ReportProcessor.py` – builds the 4 reports (Churn, Suspensions S3, SMS, IVR) and decides who is postponed (both runs).
+   It uses `ReportLoader.py` to read the report into a clean table and `MailTextBuilder.py` to write the mail text.
+3. `pipeline/AdxFileSaver.py` – writes the ADX CSV files, only if something is postponed (run 1: suspensions, run 2: IVR)
+4. `pipeline/MailSender.py` – sends the mail through Outlook (run 2)
 
-`pipeline/state.py` keeps two small state files:
+`pipeline/StateController.py` keeps two small state files:
 
 - `seen_reports.json` – the reports that were already downloaded
 - `pending_ivr.json` – the report that `main.py` processed and `main_ivr.py` still has to process
+
+## Code structure
+
+Every file holds one class and is named after it. The class methods are named after what they do
+(`find_reports`, `download_report`, `save_ivr_files`, ...), and the two "run" classes read like a checklist.
+
+```
+main.py                    entry point of run 1 (Task Scheduler)
+main_ivr.py                entry point of run 2 (Task Scheduler)
+BusinessDaysCalculator.py  adds business days (weekends + Special_days.xlsx holidays)
+pipeline/
+  SuspensionsRun.py        run 1: check the portal, download, process, save the suspensions files
+  IvrRun.py                run 2: process the same report, save the IVR files, send the mail
+  ReportPortal.py          portal: list the reports, pick the newest, download it
+  ReportLoader.py          reads a report file into a clean table (5 small steps)
+  ReportProcessor.py       the 4 reports and the postponement of customers above the limits
+  MailTextBuilder.py       the text of the mail
+  ProcessingResult.py      what processing hands over (dates, mail text, postponed customers)
+  AdxFileSaver.py          writes the CSV files for ADX (in the folder and outside it)
+  MailSender.py            sends the mail through Outlook
+  StateController.py       seen_reports.json and pending_ivr.json
+  Settings.py              settings from the .env file
+  BusinessRules.py         limits, codes and file names (change a rule only here)
+  LogSetup.py              log file and screen output
+```
 
 ## Setup
 
@@ -52,7 +78,7 @@ python diagnose.py "report\file.xlsx"         print what is in the report for th
 
 Log: `pipeline.log`.
 
-## Business rules (all in `pipeline/config.py`)
+## Business rules (all in `pipeline/BusinessRules.py`)
 
 - **Dates:** activity date = next business day after the report date (from the report title);
   postponed customers move to the next business day after the activity date.
