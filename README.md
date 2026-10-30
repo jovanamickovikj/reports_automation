@@ -1,108 +1,71 @@
 # Reports automation
 
-Downloads the newest "MAZ BAN Open Invoices" report from the portal, calculates the daily counts,
-postpones suspensions / IVR above the limits, saves CSV files for ADX and sends an automatic mail.
+Every business day the program finds TODAY'S "MAZ BAN Open Invoices" report, counts the activities for the next
+business day, postpones suspensions / IVR above the limits, saves the CSV files for ADX in the share folder and
+sends the automatic mails.
 
-The work is split into two runs, each started separately by Windows Task Scheduler:
+Two runs, each started separately by Windows Task Scheduler:
 
-1. `main.py` – downloads and processes the report, saves the **suspensions** files
-2. `main_ivr.py` – saves the **IVR** files and sends the mail
+1. `main.py` – finds and processes the report, sends mail 1 (pre-final), saves `Business_korisnici.xlsx` and the **suspensions** CSV
+2. `main_ivr.py` – saves the **IVR** CSV, sends mail 2 (final) and, if needed, mail 3 (bulk)
 
 ## Flow
 
-1. `pipeline/ReportPortal.py` – connects to the portal and downloads the newest new report into `report/` (run 1)
-2. `pipeline/ReportProcessor.py` – builds the 4 reports (Churn, Suspensions S3, SMS, IVR) and decides who is postponed (run 1 only).
-   It uses `ReportLoader.py` to read the report into a clean table and `MailTextBuilder.py` to write the mail text.
-3. `pipeline/AdxFileSaver.py` – writes the ADX CSV files, only if something is postponed (run 1 saves the suspensions file, run 2 saves the IVR file that run 1 already calculated)
-4. `pipeline/MailSender.py` – sends the mail through Outlook (run 2)
+1. **Find the report** (`ReportFinder.py`): only a report with today's date counts (Saturday/Sunday reports are ignored on Monday).
+   Portal first (`ReportPortal.py`); if it is not there and it is already `ALARM_TIME` (13:30), the share folder is
+   checked too (`ShareReportFinder.py`, files `maz_ben_open_invoices_New_<date>`). If it is not found anywhere, the
+   alarm mail `ALARM: Nepostaven ben_open file` is sent once per day.
+2. **Process** (`ReportProcessor.py`): Churn, Suspensions S3, SMS, IVR; duplicate BANs removed.
+3. **Mail 1** `Collection activities dd.mm.yyyy pre-final` – all counted activities, without the postponements.
+4. **Business_korisnici.xlsx** – the business customers with S3 two business days after the report date.
+5. **CSV files** for the postponed customers → share folder (`AdxFileSaver.py`).
+6. **Mail 2** `Collection activities dd.mm.yyyy` – the numbers after the postponements.
+7. **Mail 3** `Sledni bulk-ovi na suspenzii ...` – only if there were more than 2500 suspension MSISDNs (before the postponement).
 
-`pipeline/StateController.py` keeps two small state files:
+## Rules (all in `pipeline/BusinessRules.py`)
 
-- `seen_reports.json` – the reports that were already downloaded
-- `pending_ivr.json` – what `main.py` leaves ready for `main_ivr.py`: the finished IVR file, the mail text and the activity date
-
-## Code structure
-
-Every file holds one class and is named after it. The class methods are named after what they do
-(`find_reports`, `download_report`, `save_ivr_files`, ...), and the two "run" classes read like a checklist.
-
-```
-main.py                    entry point of run 1 (Task Scheduler)
-main_ivr.py                entry point of run 2 (Task Scheduler)
-BusinessDaysCalculator.py  adds business days (weekends + Special_days.xlsx holidays)
-pipeline/
-  SuspensionsRun.py        run 1: check the portal, download, process, save the suspensions files
-  IvrRun.py                run 2: save the IVR file that run 1 prepared, send the mail
-  ReportPortal.py          portal: list the reports, pick the newest, download it
-  ReportLoader.py          reads a report file into a clean table (5 small steps)
-  ReportProcessor.py       the 4 reports and the postponement of customers above the limits
-  MailTextBuilder.py       the text of the mail
-  ProcessingResult.py      what processing hands over (dates, mail text, postponed customers)
-  AdxFileSaver.py          writes the CSV files for ADX (in the folder and outside it)
-  MailSender.py            sends the mail through Outlook
-  PendingIvr.py            what run 1 leaves ready for run 2
-  StateController.py       seen_reports.json and pending_ivr.json
-  Settings.py              settings from the .env file
-  BusinessRules.py         limits, codes and file names (change a rule only here)
-  LogSetup.py              log file and screen output
-```
+- Business customer = ACCOUNT_TYPE `BUS`, `VBB`, `KEY` **or** COL_PATH_CODE `BB1`, `BB2`, `BB3`. Everyone else is residential (PRI).
+- Suspensions limit **3500** MSISDN for business + residential together.
+- Above the limit: first PRI customers are postponed (oldest `Account_Act_Date` first). If that is not enough,
+  BUS customers are postponed the same way, but only those with `BAN overdue amount` of at most 6000.
+- IVR limit 6000 (IVR active only, PRI only), postponed the same way.
+- Activity date = next business day after the report date; postponed customers go to the business day after that.
 
 ## Setup
 
 ```
 python -m pip install -r requirements.txt
-copy .env.example .env        (then fill in .env, including MAIL_TO)
+copy .env.example .env        (then fill in .env: PORTAL_URL, SHARE_DIR and the mail addresses)
 ```
 
 ## Run
 
-Two entry points. Schedule both in Windows Task Scheduler, the second one after the first
-(for example one hour later). The code itself does not wait or sleep between them.
-
 ```
-python main.py          run 1: download + process, saves the SUSPENSIONS files
-python main_ivr.py      run 2: saves the IVR files and sends the mail
-```
-
-`main.py` calculates everything once. It saves the suspensions file and leaves the finished IVR file and the
-mail text in `pending_ivr.json`. `main_ivr.py` does not calculate anything: it saves the IVR file from that
-file and sends the mail. It clears `pending_ivr.json` only after the IVR files are saved and the mail is sent.
-If nothing is pending,
-`main_ivr.py` logs it and exits with a non-zero code, so Task Scheduler shows the run as failed.
-If the mail fails, `pending_ivr.json` stays and `main_ivr.py` can be run again.
-
-Other options:
-
-```
-python main.py --loop                         keep running, check every CHECK_INTERVAL_MIN minutes
-python main.py --process "report\file.xlsx"   process + save both CSVs for a downloaded file, mail is only printed
-python diagnose.py "report\file.xlsx"         print what is in the report for the activity date
+python main.py          run 1 (schedule every 30-60 minutes; it does nothing once today's report is processed)
+python main_ivr.py      run 2 (schedule 30-60 minutes after the report is usually processed)
+python main.py --process "report\file.xlsx"   process + save everything for a file, the mails are only printed
+python tests\test_pipeline.py                   offline test (fake Outlook, temp folders)
 ```
 
-Log: `pipeline.log`.
+State files in the project folder: `seen_reports.json` (portal links that are not from today),
+`daily_state.json` (today processed? alarm sent?), `pending_ivr.json` (what run 2 still has to send).
+If run 2 fails, `pending_ivr.json` stays and `main_ivr.py` can be run again.
 
-## Business rules (all in `pipeline/BusinessRules.py`)
+## Code structure
 
-- **Dates:** activity date = next business day after the report date (from the report title);
-  postponed customers move to the next business day after the activity date.
-  Business days: weekends + `special_days_data/Special_days.xlsx` (keep it updated).
-- **Limits (sum of MSISDNs):** Suspensions S3 = 3000, IVR (M) = 6000. Above the limit the oldest
-  residential customers (by `Account_Act_Date`) are postponed.
-- **Churn (C):** every BAN with code C on the activity date, any status, KEY included. Counted only,
-  never postponed; in the mail only when there is at least one churn BAN for the activity date.
-- **SMS (SM):** only the number of BANs, PRI vs BUS.
-- Business types: BUS, VBB, VPN, EPN. KEY accounts are excluded (except in Churn). Duplicate BANs are removed.
-
-## Output
-
-Each CSV is saved twice in `<OUTPUT_DIR>` (default: Downloads):
-
-- **inside** the folder `<activity date>_odlozuvanje suspenzii/`:
-  `MCD_col_mass_chng_suspensions.csv` (run 1) and `MCD_col_mass_chng_ivr.csv` (run 2)
-- **outside** the folder, at the same level: `MCD_col_mass_chng.csv`, the name ADX needs for `to_do`.
-  Run 1 writes the suspensions file there, run 2 overwrites it with the IVR file.
-
-A file is only saved if something is postponed. If a run has nothing postponed, an older
-`MCD_col_mass_chng.csv` is left as it was.
-
-Format: `NS;BAN;BAN_STATUS;DEBTOR_STATUS;STEP;OLD_DATE;NEW_DATE` (no header, `;`, CRLF).
+```
+main.py / main_ivr.py     entry points
+BusinessDaysCalculator.py business days (weekends + Special_days.xlsx)
+pipeline/
+  SuspensionsRun.py       run 1      IvrRun.py          run 2
+  ReportFinder.py         today's report: portal, share, alarm
+  ReportPortal.py         portal: list, newest, download
+  ShareReportFinder.py    share folder lookup + dates in names
+  ReportLoader.py         reads the report into a clean table
+  ReportProcessor.py      the 4 reports and the postponement
+  MailTextBuilder.py      text of mails 1 and 2     MailSender.py   all Outlook mails
+  AdxFileSaver.py         CSV files                 BusinessCustomersFile.py   Business_korisnici.xlsx
+  StateController.py      the three json state files
+  Settings.py / BusinessRules.py / LogSetup.py / ProcessingResult.py / PendingIvr.py
+tests/test_pipeline.py
+```

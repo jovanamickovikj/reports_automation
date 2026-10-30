@@ -1,8 +1,8 @@
-"""Step 3 of the pipeline: save the CSV files for the ADX job.
+"""Step 3 of the pipeline: save the CSV files for the ADX job (in the share folder).
 
 Every file is saved twice:
-  - inside  <output_dir>/<activity date>_odlozuvanje suspenzii/   (keeps its own name)
-  - outside <output_dir>/MCD_col_mass_chng.csv                     (same level as the folder, gets overwritten)
+  - inside  <share_dir>/<activity date>_odlozuvanje suspenzii/   (keeps its own name)
+  - outside <share_dir>/MCD_col_mass_chng.csv                     (same level as the folder, gets overwritten)
 """
 import logging
 import shutil
@@ -17,8 +17,8 @@ log = logging.getLogger(__name__)
 
 class AdxFileSaver:
 
-    def __init__(self, output_dir: Path):
-        self.output_dir = output_dir
+    def __init__(self, share_dir: Path):
+        self.share_dir = share_dir
 
     # ---- run 1: suspensions are saved right away ----
     def save_suspensions_files(self, result: ProcessingResult) -> list[Path]:
@@ -52,10 +52,10 @@ class AdxFileSaver:
         return self._save_csv_text(result.activity_date, file_name, csv_text, len(postponed))
 
     def _save_csv_text(self, activity_date: date, file_name: str, csv_text: str, ban_count: int) -> list[Path]:
-        folder = self.output_dir / f"{activity_date:%d.%m.%Y}_odlozuvanje suspenzii"
+        folder = self.share_dir / f"{activity_date:%d.%m.%Y}_odlozuvanje suspenzii"
         folder.mkdir(parents=True, exist_ok=True)
         inside = folder / file_name
-        outside = self.output_dir / BusinessRules.OUTSIDE_CSV_NAME
+        outside = self.share_dir / BusinessRules.OUTSIDE_CSV_NAME
         with open(inside, "w", newline="", encoding="utf-8") as csv_file:
             csv_file.write(csv_text)
         shutil.copyfile(inside, outside)
