@@ -44,7 +44,6 @@ copy .env.example .env        (then fill in .env: PORTAL_URL, SHARE_DIR and the 
 python main.py          run 1 (schedule every 30-60 minutes; it does nothing once today's report is processed)
 python main_ivr.py      run 2 (schedule 30-60 minutes after the report is usually processed)
 python main.py --process "report\file.xlsx"   process + save everything for a file, the mails are only printed
-python tests\test_pipeline.py                   offline test (fake Outlook, temp folders)
 ```
 
 State files in the project folder: `seen_reports.json` (portal links that are not from today),
@@ -67,5 +66,4 @@ pipeline/
   AdxFileSaver.py         CSV files                 BusinessCustomersFile.py   Business_korisnici.xlsx
   StateController.py      the three json state files
   Settings.py / BusinessRules.py / LogSetup.py / ProcessingResult.py / PendingIvr.py
-tests/test_pipeline.py
 ```

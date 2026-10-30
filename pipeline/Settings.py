@@ -23,7 +23,6 @@ class Settings:
     mail_final_cc: str
     mail_bulk_to: str        # mail 3: more than 2500 suspension MSISDNs
     mail_bulk_cc: str
-    check_interval_min: int  # only used with --loop
     state_file: Path         # remembers which reports were already downloaded
     daily_state_file: Path   # remembers if today's report was found and if the alarm was sent
     pending_file: Path       # remembers the report that main_ivr.py still has to process
@@ -60,7 +59,6 @@ class Settings:
             mail_final_cc=os.getenv("MAIL_FINAL_CC", ""),
             mail_bulk_to=cls._required("MAIL_BULK_TO"),
             mail_bulk_cc=os.getenv("MAIL_BULK_CC", ""),
-            check_interval_min=int(os.getenv("CHECK_INTERVAL_MIN", "60")),
             state_file=PROJECT_DIR / "seen_reports.json",
             daily_state_file=PROJECT_DIR / "daily_state.json",
             pending_file=PROJECT_DIR / "pending_ivr.json",
