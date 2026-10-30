@@ -3,11 +3,16 @@
 
 class MailTextBuilder:
 
-    def build_mail_text(self, activity_date, new_date, churn, suspensions, sms, ivr) -> str:
-        """Returns the whole mail as one string. Churn (churn=None) is skipped when there is no churn for the activity date."""
+    def build_mail_text(self, activity_date, churn, suspensions, sms, ivr) -> str:
+        """
+        Returns the whole mail as one string. suspensions and ivr are the numbers to show: before the
+        postponement (pre-final mail) or after it (final mail). Churn (churn=None) is written as 'Churn – nema'.
+        """
         items = []
 
-        if churn is not None:
+        if churn is None:
+            items.append("Churn – nema")
+        else:
             bans = churn["residential"].bans + churn["business"].bans
             msisdns = churn["residential"].msisdns + churn["business"].msisdns
             parts = [f"Churn – BAN {bans} / MSISDN {msisdns}",
@@ -17,8 +22,7 @@ class MailTextBuilder:
         total = suspensions["total"]
         parts = [f"Za suspenzija – BAN {total.bans} / MSISDN {total.msisdns}",
                  self.describe_groups(suspensions["residential"], suspensions["business"])]
-        items.append(" – ".join(part for part in parts if part)
-                     + self.describe_postponed_customers(suspensions["postponed"], new_date))
+        items.append(" – ".join(part for part in parts if part))
 
         sms_total = sms["residential_bans"] + sms["business_bans"]
         items.append(f"SMS Notification – BAN {sms_total} – PRI ({sms['residential_bans']}) BUS ({sms['business_bans']})")
@@ -28,7 +32,6 @@ class MailTextBuilder:
             f"IVR – BAN {active.bans + suspended.bans} / MSISDN {active.msisdns + suspended.msisdns} "
             f"– site se PRI korisnici ({active.bans} ban-a – {active.msisdns} msisdn-a active korisnici i "
             f"{suspended.bans} ban-a – {suspended.msisdns} msisdn-a za suspendirani korisnici)"
-            + self.describe_postponed_customers(ivr["postponed"], new_date)
         )
 
         lines = [f"Zakazani aktivnosti za {activity_date:%d.%m.%Y} se sledni:", ""]
@@ -46,11 +49,3 @@ class MailTextBuilder:
             return "site se BUS"
         return (f"PRI (BAN {residential.bans} / MSISDN {residential.msisdns}), "
                 f"BUS (BAN {business.bans} / MSISDN {business.msisdns})")
-
-    @staticmethod
-    def describe_postponed_customers(postponed, new_date) -> str:
-        """Extra text for the mail, only when some customers were postponed."""
-        if len(postponed) == 0:
-            return ""
-        return (f" – odlozeni za {new_date:%d.%m.%Y}: BAN {len(postponed)} / "
-                f"MSISDN {int(postponed['BAN_Nr_msisdns'].sum())}")

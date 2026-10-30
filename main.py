@@ -6,9 +6,10 @@ Report pipeline - run 1 of 2 (suspensions).
     python main.py --process FILE   run only step 2 and 3 on a file that is already downloaded;
                                     saves BOTH suspensions and IVR, the mail is only printed, not sent
 
-Each check downloads only the NEWEST new report. Older new reports are marked as seen and skipped.
-This run saves the SUSPENSIONS files and leaves the finished IVR file and the mail ready in pending_ivr.json.
-main_ivr.py (scheduled separately) then saves the IVR files and sends the mail.
+Each check looks for TODAY'S report only (portal; after ALARM_TIME also the share folder).
+If it is not there by ALARM_TIME, the alarm mail is sent (once). Schedule main.py to run every 30-60 minutes.
+When the report is found: pre-final mail, Business_korisnici.xlsx, suspensions CSV to the share folder.
+The IVR file and the final / bulk mails are left ready in pending_ivr.json; main_ivr.py (scheduled separately) sends them.
 """
 import argparse
 import logging

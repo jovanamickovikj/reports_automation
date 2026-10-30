@@ -1,10 +1,10 @@
 """
-Report pipeline - run 2 of 2 (IVR + mail).
+Report pipeline - run 2 of 2 (IVR + final and bulk mail).
 
     python main_ivr.py
 
-Takes the IVR file and the mail that main.py calculated (left ready in pending_ivr.json), saves the IVR
-files and sends the automatic mail. It does not download or calculate anything and does not wait:
+Takes the IVR file and the mails that main.py calculated (left ready in pending_ivr.json), saves the IVR
+files and sends the final mail (and the bulk mail when there are more than 2500 suspension MSISDNs). It does not download or calculate anything and does not wait:
 schedule it in Windows Task Scheduler after main.py.
 """
 import logging

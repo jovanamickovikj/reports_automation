@@ -1,14 +1,18 @@
-"""Run 1 of 2: download the newest report, process it and save the SUSPENSIONS files.
+"""Run 1 of 2: find today's report, process it, mail 1 (pre-final), Business_korisnici.xlsx and the SUSPENSIONS file.
 
-The IVR file is calculated here too, but it is only saved (and the mail is only sent) by the second run
-(IvrRun.py), which is scheduled separately.
+The IVR file, mail 2 (final) and mail 3 (bulk) are done by the second run (IvrRun.py), which is scheduled separately.
+Order in this run:  1) pre-final mail  2) Business_korisnici.xlsx  3) suspensions CSV to the share  4) leave the rest pending
 """
 import logging
 from pathlib import Path
 
+from . import BusinessRules
 from .AdxFileSaver import AdxFileSaver
+from .BusinessCustomersFile import BusinessCustomersFile
+from .MailSender import MailSender
 from .PendingIvr import PendingIvr
-from .ReportPortal import ReportPortal
+from .ProcessingResult import ProcessingResult
+from .ReportFinder import ReportFinder
 from .ReportProcessor import ReportProcessor
 from .Settings import Settings
 from .StateController import StateController
@@ -21,51 +25,52 @@ class SuspensionsRun:
     def __init__(self, settings: Settings):
         self.settings = settings
         self.state_controller = StateController(settings)
+        self.mail_sender = MailSender(settings)
+        self.report_finder = ReportFinder(settings, self.state_controller, self.mail_sender)
         self.report_processor = ReportProcessor()
-        self.file_saver = AdxFileSaver(settings.output_dir)
+        self.file_saver = AdxFileSaver(settings.share_dir)
+        self.business_customers_file = BusinessCustomersFile(settings.share_dir)
 
     def check_once(self) -> None:
-        """Look at the portal once; if there are new reports, download and process only the newest."""
-        seen = self.state_controller.load_seen_reports()
-        portal = ReportPortal(self.settings)
-        reports = portal.find_reports()
-        new = [url for url in reports if url not in seen]
-        log.info("Found %d report link(s), %d new", len(reports), len(new))
-        if not new:
-            return
-
-        url = portal.pick_newest_report(new)
-        try:
-            path = portal.download_report(url, reports[url])
-        except Exception:
-            log.exception("Download failed (will retry next check): %s", url)
-            return
-
-        # Mark ALL new reports as seen, so the older ones are skipped from now on.
-        self.state_controller.save_seen_reports(seen | set(new))
-        log.info("Downloaded %s (skipped %d older new report(s))", path.name, len(new) - 1)
-
-        self.process_downloaded_report(path)
+        """Looks for today's report once; if it is there, processes it."""
+        path = self.report_finder.find_todays_report()
+        if path is not None:
+            self.process_downloaded_report(path)
 
     def process_downloaded_report(self, path: Path) -> None:
-        """Processes the report, saves the suspensions CSV and leaves the finished IVR file and mail for the IVR run."""
+        """Processes the report and does the steps of run 1. Today is marked as done only if all of them worked."""
         try:
-            result = self.report_processor.process_report(path)         # 2. processing
-            self.file_saver.save_suspensions_files(result)              # 3. save the suspensions CSV (IVR is saved by IvrRun)
-            self.state_controller.save_pending_ivr(PendingIvr(          # leave the IVR file and the mail ready for IvrRun
-                report_path=path,
-                activity_date=result.activity_date,
-                mail_text=result.mail_text,
-                ivr_csv_text=self.file_saver.build_ivr_csv_text(result),
-                ivr_bans=len(result.ivr_postponed),
-            ))
+            result = self.report_processor.process_report(path)                             # 2. processing
+            self.mail_sender.send_pre_final_mail(result.activity_date, result.mail_pre_final_text)   # mail 1
+            self.business_customers_file.save(result.business_customers)                   # Business_korisnici.xlsx
+            self.file_saver.save_suspensions_files(result)                                 # 3. suspensions CSV
+            self.state_controller.save_pending_ivr(self.build_pending(path, result))       # the rest is for run 2
+            daily = self.state_controller.load_daily_state(result.report_date)
+            self.state_controller.save_daily_state(result.report_date, processed=True, alarm_sent=daily["alarm_sent"])
         except Exception:
             log.exception("Processing / saving failed: %s", path)
 
+    def build_pending(self, path: Path, result: ProcessingResult) -> PendingIvr:
+        # More than 2500 suspension MSISDNs BEFORE the postponement -> the bulk mail is sent (with the final number)
+        send_bulk = result.suspensions_msisdns_before > BusinessRules.BULK_MAIL_MSISDNS
+        return PendingIvr(
+            report_path=path,
+            activity_date=result.activity_date,
+            mail_final_text=result.mail_final_text,
+            ivr_csv_text=self.file_saver.build_ivr_csv_text(result),
+            ivr_bans=len(result.ivr_postponed),
+            bulk_msisdns=result.suspensions_msisdns_after if send_bulk else None,
+        )
+
     def process_file_without_mail(self, path: Path) -> None:
-        """For development (python main.py --process FILE): saves BOTH CSV files, the mail is only printed."""
+        """For development (python main.py --process FILE): saves everything, the mails are only printed."""
         result = self.report_processor.process_report(path)
+        self.business_customers_file.save(result.business_customers)
         self.file_saver.save_suspensions_files(result)
         self.file_saver.save_ivr_files(result)
-        print("\n===== MAIL (not sent) =====")
-        print(result.mail_text)
+        print("\n===== MAIL 1: pre-final (not sent) =====")
+        print(result.mail_pre_final_text)
+        print("===== MAIL 2: final (not sent) =====")
+        print(result.mail_final_text)
+        if result.suspensions_msisdns_before > BusinessRules.BULK_MAIL_MSISDNS:
+            print(f"===== MAIL 3: bulk would be sent (about {result.suspensions_msisdns_after} MSISDN) =====")

@@ -55,19 +55,36 @@ class ReportLoader:
         return report_date
 
     @staticmethod
-    def cut_out_table(raw: pd.DataFrame) -> pd.DataFrame:
-        """3. Table: the row where 'BAN' stands is the header; keep only the required columns."""
+    def normalize_name(name) -> str:
+        """'BAN overdue amount', 'ban_overdue.amount' and 'BAN_OVERDUE_AMOUNT' are the same column."""
+        return re.sub(r"[\s\.]+", "_", str(name).strip()).upper()
+
+    def cut_out_table(self, raw: pd.DataFrame) -> pd.DataFrame:
+        """3. Table: the row where 'BAN' stands is the header; keep only the wanted columns."""
         rows_with_ban = raw.apply(lambda row: (row.astype(str).str.strip() == "BAN").any(), axis=1)
         if not rows_with_ban.any():
             raise ValueError("Header row with the column 'BAN' not found in the report")
         header_row = raw.index[rows_with_ban][0]
-        table = raw.iloc[header_row + 1:].copy()
-        table.columns = [str(name).strip() for name in raw.iloc[header_row]]
+        body = raw.iloc[header_row + 1:]
+        header_names = [str(name).strip() for name in raw.iloc[header_row]]
 
-        missing_columns = [c for c in BusinessRules.REQUIRED_COLUMNS if c not in table.columns]
-        if missing_columns:
-            raise ValueError(f"The report is missing columns: {missing_columns}")
-        return table[BusinessRules.REQUIRED_COLUMNS].dropna(subset=["BAN"]).reset_index(drop=True)
+        position_of = {}
+        for position, name in enumerate(header_names):
+            position_of.setdefault(self.normalize_name(name), position)
+
+        missing = [c for c in BusinessRules.REQUIRED_COLUMNS if self.normalize_name(c) not in position_of]
+        if missing:
+            raise ValueError(f"The report is missing columns: {missing}. Columns found: {header_names}")
+
+        table = pd.DataFrame(index=body.index)
+        for column in BusinessRules.REQUIRED_COLUMNS + BusinessRules.OPTIONAL_COLUMNS:
+            position = position_of.get(self.normalize_name(column))
+            if position is None:
+                log.warning("Optional column %s is not in the report. Columns found: %s", column, header_names)
+                table[column] = None
+            else:
+                table[column] = body.iloc[:, position]
+        return table.dropna(subset=["BAN"]).reset_index(drop=True)
 
     @staticmethod
     def remove_duplicate_bans(table: pd.DataFrame):
@@ -77,20 +94,24 @@ class ReportLoader:
         return table[~is_duplicate].copy(), duplicates_removed
 
     def set_column_types_and_helper_columns(self, table: pd.DataFrame) -> pd.DataFrame:
-        """5. Column types and helper columns (STEP_DATE, IS_KEY, GROUP)."""
+        """5. Column types and helper columns (STEP_DATE, IS_KEY, GROUP: BUS or PRI)."""
         table["COL_NEXT_STEP_DATE"] = self.convert_text_to_dates(table["COL_NEXT_STEP_DATE"])
         table["Account_Act_Date"] = self.convert_text_to_dates(table["Account_Act_Date"])
         table["BAN_Nr_msisdns"] = pd.to_numeric(table["BAN_Nr_msisdns"], errors="coerce").fillna(0)
         for column in ["BAN_STATUS", "ACCOUNT_TYPE", "COL_ACTIVITY_CODE", "FOLLOW_UP_TYPE"]:
             table[column] = table[column].astype(str).str.strip().str.upper()
 
+        path_code = BusinessRules.PATH_CODE_COLUMN
+        overdue = BusinessRules.OVERDUE_COLUMN
+        table[path_code] = table[path_code].fillna("").astype(str).str.strip().str.upper()
+        table[overdue] = pd.to_numeric(table[overdue].astype(str).str.replace(" ", "", regex=False), errors="coerce")
+
         table["STEP_DATE"] = table["COL_NEXT_STEP_DATE"].dt.date          # date without the time
         table["IS_KEY"] = table["ACCOUNT_TYPE"] == BusinessRules.KEY_ACCOUNT_TYPE
-        table["GROUP"] = table["ACCOUNT_TYPE"].apply(
-            lambda account_type: (BusinessRules.GROUP_BUSINESS
-                                  if account_type in BusinessRules.BUSINESS_ACCOUNT_TYPES
-                                  else BusinessRules.GROUP_RESIDENTIAL)
-        )
+        # Business = a business account type OR a business path code. Everything else is residential.
+        is_business = (table["ACCOUNT_TYPE"].isin(BusinessRules.BUSINESS_ACCOUNT_TYPES) |
+                       table[path_code].isin(BusinessRules.BUSINESS_PATH_CODES))
+        table["GROUP"] = is_business.map({True: BusinessRules.GROUP_BUSINESS, False: BusinessRules.GROUP_RESIDENTIAL})
         return table
 
     @staticmethod
