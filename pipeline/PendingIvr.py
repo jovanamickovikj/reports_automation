@@ -12,3 +12,4 @@ class PendingIvr:
     ivr_csv_text: str | None      # the finished IVR CSV, None = nobody is postponed in IVR
     ivr_bans: int                 # number of BANs in the IVR CSV (only used for the log)
     bulk_msisdns: int | None      # mail 3 is sent with this number; None = no bulk mail (2500 MSISDN or fewer)
+    final_mail_sent: bool = False  # set after the IVR file is saved and mail 2 is sent, so a retry (bulk mail failed) does not repeat them

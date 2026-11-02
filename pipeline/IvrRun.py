@@ -29,10 +29,13 @@ class IvrRun:
             return 1
 
         log.info("IVR run for the report: %s", pending.report_path.name)
-        self.file_saver.save_staged_ivr_file(                           # 3. save the IVR CSV (already calculated)
-            pending.activity_date, pending.ivr_csv_text, pending.ivr_bans)
-        self.mail_sender.send_final_mail(                               # 4. mail 2: the numbers after the postponement
-            pending.activity_date, pending.mail_final_text)
+        if not pending.final_mail_sent:
+            self.file_saver.save_staged_ivr_file(                       # 3. save the IVR CSV (already calculated)
+                pending.activity_date, pending.ivr_csv_text, pending.ivr_bans)
+            self.mail_sender.send_final_mail(                           # 4. mail 2: the numbers after the postponement
+                pending.activity_date, pending.mail_final_text)
+            pending.final_mail_sent = True                              # remember it: if mail 3 fails, a re-run sends only mail 3
+            self.state_controller.save_pending_ivr(pending)
         if pending.bulk_msisdns is not None:                            # mail 3: more than 2500 suspension MSISDNs
             self.mail_sender.send_bulk_mail(pending.activity_date, pending.bulk_msisdns)
         self.state_controller.clear_pending_ivr()                       # only after save + mail worked
