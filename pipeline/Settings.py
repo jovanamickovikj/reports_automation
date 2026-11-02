@@ -15,7 +15,8 @@ class Settings:
     link_selector: str       # CSS selector that matches the report download links
     auth_mode: str           # "windows" (your Windows login) or "none"
     download_dir: Path       # where downloaded reports are saved
-    share_dir: Path          # the share folder: CSV files, Business_korisnici.xlsx, and reports that BI puts by hand
+    share_dir: Path          # the share folder where BI puts the report by hand (only read)
+    output_dir: Path         # where the CSV files and Business_korisnici.xlsx are saved (default: Downloads)
     alarm_time: time         # if the report is not there by this time, the alarm mail is sent
     mail_alarm_to: str       # alarm: the report is missing
     mail_pre_final_to: str   # mail 1: all counted activities, before the postponement
@@ -23,7 +24,6 @@ class Settings:
     mail_final_cc: str
     mail_bulk_to: str        # mail 3: more than 2500 suspension MSISDNs
     mail_bulk_cc: str
-    check_interval_min: int  # only used with --loop
     state_file: Path         # remembers which reports were already downloaded
     daily_state_file: Path   # remembers if today's report was found and if the alarm was sent
     pending_file: Path       # remembers the report that main_ivr.py still has to process
@@ -47,12 +47,15 @@ class Settings:
         except ValueError:
             raise SystemExit("ALARM_TIME must look like 13:30")
 
+        output_dir = Path(os.getenv("OUTPUT_DIR") or Path.home() / "Downloads")
+
         return cls(
             portal_url=cls._required("PORTAL_URL"),
             link_selector=os.getenv("LINK_SELECTOR", "a[href*=frmofferfile]"),
             auth_mode=auth_mode,
             download_dir=download_dir,
             share_dir=Path(cls._required("SHARE_DIR")),
+            output_dir=output_dir,
             alarm_time=alarm_time,
             mail_alarm_to=cls._required("MAIL_ALARM_TO"),
             mail_pre_final_to=cls._required("MAIL_PRE_FINAL_TO"),
@@ -60,7 +63,6 @@ class Settings:
             mail_final_cc=os.getenv("MAIL_FINAL_CC", ""),
             mail_bulk_to=cls._required("MAIL_BULK_TO"),
             mail_bulk_cc=os.getenv("MAIL_BULK_CC", ""),
-            check_interval_min=int(os.getenv("CHECK_INTERVAL_MIN", "60")),
             state_file=PROJECT_DIR / "seen_reports.json",
             daily_state_file=PROJECT_DIR / "daily_state.json",
             pending_file=PROJECT_DIR / "pending_ivr.json",

@@ -18,7 +18,7 @@ class IvrRun:
     def __init__(self, settings: Settings):
         self.settings = settings
         self.state_controller = StateController(settings)
-        self.file_saver = AdxFileSaver(settings.share_dir)
+        self.file_saver = AdxFileSaver(settings.output_dir)
         self.mail_sender = MailSender(settings)
 
     def run(self) -> int:
