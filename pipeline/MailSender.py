@@ -2,12 +2,18 @@
 
 Recipients come from .env (Settings). Four kinds of mail: alarm, pre-final, final, bulk.
 """
+import logging
+import re
 from datetime import date, timedelta
 
 import win32com.client
 
 from . import BusinessRules
 from .Settings import Settings
+
+log = logging.getLogger(__name__)
+
+EMAIL_RE = re.compile(r"[\w.+'-]+@[\w.-]+\.\w+")
 
 
 class MailSender:
@@ -53,12 +59,24 @@ class MailSender:
         )
 
     @staticmethod
-    def send_mail(to: str, subject: str, body: str, cc: str = "") -> None:
+    def clean_addresses(text: str) -> str:
+        """Keeps only the e-mail addresses, separated by ';'. So 'Name [a@b.mk], c@d.mk' also works."""
+        return "; ".join(EMAIL_RE.findall(text or ""))
+
+    @classmethod
+    def send_mail(cls, to: str, subject: str, body: str, cc: str = "") -> None:
+        to_clean, cc_clean = cls.clean_addresses(to), cls.clean_addresses(cc)
+        if not to_clean:
+            raise ValueError(f"No valid e-mail address in the recipient '{to}' (check the .env file). Subject: {subject}")
+        log.info("Sending mail '%s' To: %s | Cc: %s", subject, to_clean, cc_clean)
         outlook = win32com.client.Dispatch("Outlook.Application")
         mail = outlook.CreateItem(0)
-        mail.To = to
-        if cc:
-            mail.CC = cc
+        mail.To = to_clean
+        if cc_clean:
+            mail.CC = cc_clean
         mail.Subject = subject
         mail.Body = body
+        if not mail.Recipients.ResolveAll():
+            unresolved = [r.Name for r in mail.Recipients if not r.Resolved]
+            raise ValueError(f"Outlook does not recognize these addresses: {unresolved}. Check them in the .env file.")
         mail.Send()
