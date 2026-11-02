@@ -28,8 +28,8 @@ class SuspensionsRun:
         self.mail_sender = MailSender(settings)
         self.report_finder = ReportFinder(settings, self.state_controller, self.mail_sender)
         self.report_processor = ReportProcessor()
-        self.file_saver = AdxFileSaver(settings.share_dir)
-        self.business_customers_file = BusinessCustomersFile(settings.share_dir)
+        self.file_saver = AdxFileSaver(settings.output_dir)
+        self.business_customers_file = BusinessCustomersFile(settings.output_dir)
 
     def check_once(self) -> None:
         """Looks for today's report once; if it is there, processes it."""

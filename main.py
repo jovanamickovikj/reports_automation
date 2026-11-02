@@ -2,7 +2,7 @@
 Report pipeline - run 1 of 2 (suspensions).
 
     python main.py                  check once (schedule this with Windows Task Scheduler)
-    python main.py --process        run only step 2 and 3 on the NEWEST report file in the download folder (Downloads)
+    python main.py --process        run only step 2 and 3 on the NEWEST report file in the download folder (report folder)
     python main.py --process FILE   the same on a file you name;
                                     saves BOTH suspensions and IVR, the mails are only printed, not sent
 

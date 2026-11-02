@@ -15,7 +15,8 @@ class Settings:
     link_selector: str       # CSS selector that matches the report download links
     auth_mode: str           # "windows" (your Windows login) or "none"
     download_dir: Path       # where downloaded reports are saved
-    share_dir: Path          # the share folder: CSV files, Business_korisnici.xlsx, and reports that BI puts by hand
+    share_dir: Path          # the share folder where BI puts the report by hand (only read)
+    output_dir: Path         # where the CSV files and Business_korisnici.xlsx are saved (default: Downloads)
     alarm_time: time         # if the report is not there by this time, the alarm mail is sent
     mail_alarm_to: str       # alarm: the report is missing
     mail_pre_final_to: str   # mail 1: all counted activities, before the postponement
@@ -37,8 +38,7 @@ class Settings:
         if auth_mode not in ("windows", "none"):
             raise SystemExit(f"AUTH_MODE must be 'windows' or 'none', got '{auth_mode}'")
 
-        # Default: the Downloads folder of the current Windows user
-        download_dir = Path(os.getenv("DOWNLOAD_DIR") or Path.home() / "Downloads")
+        download_dir = Path(os.getenv("DOWNLOAD_DIR") or "report")
         if not download_dir.is_absolute():
             download_dir = PROJECT_DIR / download_dir
 
@@ -47,12 +47,15 @@ class Settings:
         except ValueError:
             raise SystemExit("ALARM_TIME must look like 13:30")
 
+        output_dir = Path(os.getenv("OUTPUT_DIR") or Path.home() / "Downloads")
+
         return cls(
             portal_url=cls._required("PORTAL_URL"),
             link_selector=os.getenv("LINK_SELECTOR", "a[href*=frmofferfile]"),
             auth_mode=auth_mode,
             download_dir=download_dir,
             share_dir=Path(cls._required("SHARE_DIR")),
+            output_dir=output_dir,
             alarm_time=alarm_time,
             mail_alarm_to=cls._required("MAIL_ALARM_TO"),
             mail_pre_final_to=cls._required("MAIL_PRE_FINAL_TO"),

@@ -1,7 +1,7 @@
 # Reports automation
 
 Every business day the program finds TODAY'S "MAZ BAN Open Invoices" report, counts the activities for the next
-business day, postpones suspensions / IVR above the limits, saves the CSV files for ADX in the share folder and
+business day, postpones suspensions / IVR above the limits, saves the CSV files for ADX in the output folder (Downloads) and
 sends the automatic mails.
 
 Two runs, each started separately by Windows Task Scheduler:
@@ -18,7 +18,7 @@ Two runs, each started separately by Windows Task Scheduler:
 2. **Process** (`ReportProcessor.py`): Churn, Suspensions S3, SMS, IVR; duplicate BANs removed.
 3. **Mail 1** `Collection activities dd.mm.yyyy pre-final` – all counted activities, without the postponements.
 4. **Business_korisnici.xlsx** – the business customers with S3 two business days after the report date.
-5. **CSV files** for the postponed customers → share folder (`AdxFileSaver.py`).
+5. **CSV files** for the postponed customers → `OUTPUT_DIR`, default Downloads (`AdxFileSaver.py`).
 6. **Mail 2** `Collection activities dd.mm.yyyy` – the numbers after the postponements.
 7. **Mail 3** `Sledni bulk-ovi na suspenzii ...` – only if there were more than 2500 suspension MSISDNs (before the postponement).
 
@@ -35,7 +35,7 @@ Two runs, each started separately by Windows Task Scheduler:
 
 ```
 python -m pip install -r requirements.txt
-copy .env.example .env        (then fill in .env: PORTAL_URL, SHARE_DIR and the mail addresses)
+copy .env.example .env        (then fill in .env: PORTAL_URL, SHARE_DIR and the mail addresses; OUTPUT_DIR is optional)
 ```
 
 ## Run
@@ -43,7 +43,7 @@ copy .env.example .env        (then fill in .env: PORTAL_URL, SHARE_DIR and the 
 ```
 python main.py          run 1 (schedule every 30-60 minutes; it does nothing once today's report is processed)
 python main_ivr.py      run 2 (schedule 30-60 minutes after the report is usually processed)
-python main.py --process                       process + save everything for the NEWEST report file in the download folder (default: Downloads), mails only printed
+python main.py --process                       process + save everything for the NEWEST report file in the download folder (report\), mails only printed
 python main.py --process "report\<name>.xlsx"  the same for a file you name
 ```
 
