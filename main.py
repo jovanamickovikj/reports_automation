@@ -2,7 +2,7 @@
 Report pipeline - run 1 of 2 (suspensions).
 
     python main.py                  check once (schedule this with Windows Task Scheduler)
-    python main.py --process        run only step 2 and 3 on the NEWEST file in the report folder
+    python main.py --process        run only step 2 and 3 on the NEWEST report file in the download folder (Downloads)
     python main.py --process FILE   the same on a file you name;
                                     saves BOTH suspensions and IVR, the mails are only printed, not sent
 
@@ -31,14 +31,14 @@ def newest_report_in(folder: Path) -> Path:
     if not files:
         raise SystemExit(f"No report file in {folder}. Put the report there or give the file: --process FILE")
     newest = max(files, key=lambda f: f.stat().st_mtime)
-    log.info("Using the newest file in the report folder: %s", newest.name)
+    log.info("Using the newest report file in the download folder: %s", newest.name)
     return newest
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Download the newest report from the portal and save the suspensions files.")
     parser.add_argument("--process", metavar="FILE", type=Path, nargs="?", const=Path(),
-                        help="only run processing + saving on FILE (without FILE: the newest file in the report folder)")
+                        help="only run processing + saving on FILE (without FILE: the newest report file in the download folder)")
     args = parser.parse_args()
 
     truststore.inject_into_ssl()  # trust the same certificates Windows trusts (company CA)

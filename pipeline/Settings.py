@@ -37,7 +37,8 @@ class Settings:
         if auth_mode not in ("windows", "none"):
             raise SystemExit(f"AUTH_MODE must be 'windows' or 'none', got '{auth_mode}'")
 
-        download_dir = Path(os.getenv("DOWNLOAD_DIR") or "report")
+        # Default: the Downloads folder of the current Windows user
+        download_dir = Path(os.getenv("DOWNLOAD_DIR") or Path.home() / "Downloads")
         if not download_dir.is_absolute():
             download_dir = PROJECT_DIR / download_dir
 
