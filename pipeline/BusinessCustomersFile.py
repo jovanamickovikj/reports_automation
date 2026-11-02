@@ -1,4 +1,4 @@
-"""Writes Business_korisnici.xlsx: the business customers whose suspension is 2 business days ahead."""
+"""Writes Business_korisnici.xlsx: the business customers whose suspension is 2 business days ahead (all report columns)."""
 import logging
 from pathlib import Path
 
@@ -8,8 +8,8 @@ from . import BusinessRules
 
 log = logging.getLogger(__name__)
 
-COLUMNS = ["BAN", "BAN_STATUS", "DEBTOR_STATUS", "ACCOUNT_TYPE", BusinessRules.PATH_CODE_COLUMN,
-           "BAN_Nr_msisdns", BusinessRules.OVERDUE_COLUMN, "COL_NEXT_STEP_DATE", "Account_Act_Date"]
+# Columns the program adds for its own calculations; they are not part of the report
+HELPER_COLUMNS = ["STEP_DATE", "IS_KEY", "GROUP"]
 
 
 class BusinessCustomersFile:
@@ -21,7 +21,8 @@ class BusinessCustomersFile:
         """Overwrites the file in the share folder (the file always shows the newest run)."""
         self.share_dir.mkdir(parents=True, exist_ok=True)
         path = self.share_dir / BusinessRules.BUSINESS_CUSTOMERS_FILE_NAME
-        table = business_customers[COLUMNS].copy()
+        # ALL columns of the report, in the original order
+        table = business_customers.drop(columns=HELPER_COLUMNS).copy()
         table["BAN_Nr_msisdns"] = pd.to_numeric(table["BAN_Nr_msisdns"], errors="coerce")
         for column in ("COL_NEXT_STEP_DATE", "Account_Act_Date"):
             table[column] = table[column].dt.strftime("%d.%m.%Y")

@@ -60,7 +60,7 @@ class ReportLoader:
         return re.sub(r"[\s\.]+", "_", str(name).strip()).upper()
 
     def cut_out_table(self, raw: pd.DataFrame) -> pd.DataFrame:
-        """3. Table: the row where 'BAN' stands is the header; keep only the wanted columns."""
+        """3. Table: the row where 'BAN' stands is the header; keep all columns."""
         rows_with_ban = raw.apply(lambda row: (row.astype(str).str.strip() == "BAN").any(), axis=1)
         if not rows_with_ban.any():
             raise ValueError("Header row with the column 'BAN' not found in the report")
@@ -76,14 +76,22 @@ class ReportLoader:
         if missing:
             raise ValueError(f"The report is missing columns: {missing}. Columns found: {header_names}")
 
-        table = pd.DataFrame(index=body.index)
-        for column in BusinessRules.REQUIRED_COLUMNS + BusinessRules.OPTIONAL_COLUMNS:
-            position = position_of.get(self.normalize_name(column))
-            if position is None:
+        # Keep ALL columns of the report in their original order (Business_korisnici.xlsx shows them all).
+        # The columns the program uses get the canonical names from BusinessRules.
+        canonical = {self.normalize_name(c): c for c in BusinessRules.REQUIRED_COLUMNS + BusinessRules.OPTIONAL_COLUMNS}
+        names, used = [], set()
+        for position, header in enumerate(header_names):
+            name = canonical.get(self.normalize_name(header), header) if position_of[self.normalize_name(header)] == position else header
+            while name in used or name == "":
+                name = f"{name}_{position}"
+            used.add(name)
+            names.append(name)
+        table = body.copy()
+        table.columns = names
+        for column in BusinessRules.OPTIONAL_COLUMNS:
+            if column not in table.columns:
                 log.warning("Optional column %s is not in the report. Columns found: %s", column, header_names)
                 table[column] = None
-            else:
-                table[column] = body.iloc[:, position]
         return table.dropna(subset=["BAN"]).reset_index(drop=True)
 
     @staticmethod
