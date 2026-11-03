@@ -27,20 +27,24 @@ class StateController:
     def save_seen_reports(self, seen: set[str]) -> None:
         self._write_json(self.seen_reports_file, sorted(seen))
 
-    # ---- what happened today: is the report processed, was the alarm sent ----
+    # ---- what happened today: is the report processed, was the alarm / the pre-final mail sent ----
+    DAILY_DEFAULTS = {"processed": False, "alarm_sent": False, "pre_final_sent": False}
+
     def load_daily_state(self, today: date) -> dict:
-        """{'processed': bool, 'alarm_sent': bool} for today (everything False on a new day)."""
-        empty = {"processed": False, "alarm_sent": False}
+        """{'processed', 'alarm_sent', 'pre_final_sent'} for today (everything False on a new day)."""
+        empty = dict(self.DAILY_DEFAULTS)
         if not self.daily_state_file.exists():
             return empty
         data = self._read_json(self.daily_state_file)
         if not isinstance(data, dict) or data.get("date") != today.isoformat():
             return empty
-        return {"processed": bool(data.get("processed")), "alarm_sent": bool(data.get("alarm_sent"))}
+        return {key: bool(data.get(key)) for key in self.DAILY_DEFAULTS}
 
-    def save_daily_state(self, today: date, processed: bool, alarm_sent: bool) -> None:
-        self._write_json(self.daily_state_file, {"date": today.isoformat(), "processed": processed,
-                                                 "alarm_sent": alarm_sent})
+    def update_daily_state(self, today: date, **changes: bool) -> None:
+        """Changes some of today's flags and keeps the others, e.g. update_daily_state(today, alarm_sent=True)."""
+        state = self.load_daily_state(today)
+        state.update(changes)
+        self._write_json(self.daily_state_file, {"date": today.isoformat(), **state})
 
     # ---- what main.py leaves ready for main_ivr.py ----
     def save_pending_ivr(self, pending: PendingIvr) -> None:
