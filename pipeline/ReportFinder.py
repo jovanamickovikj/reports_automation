@@ -48,7 +48,7 @@ class ReportFinder:
             if path is None and not daily["alarm_sent"]:
                 log.warning("No report for %s by %s - sending the alarm mail.", today, self.settings.alarm_time)
                 self.mail_sender.send_alarm_mail(today)
-                self.state_controller.update_daily_state(today, alarm_sent=True)
+                self.state_controller.save_daily_state(today, processed=False, alarm_sent=True)
         if path is None:
             log.info("Today's report (%s) is not available yet.", today)
         return path

@@ -1,6 +1,5 @@
 """Writes Business_korisnici.xlsx: the business customers whose suspension is 2 business days ahead (all report columns)."""
 import logging
-from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -27,12 +26,6 @@ class BusinessCustomersFile:
         table["BAN_Nr_msisdns"] = pd.to_numeric(table["BAN_Nr_msisdns"], errors="coerce")
         for column in ("COL_NEXT_STEP_DATE", "Account_Act_Date"):
             table[column] = table[column].dt.strftime("%d.%m.%Y")
-        try:
-            table.to_excel(path, index=False, sheet_name="Business_korisnici")
-        except PermissionError:   # most likely the file is open in Excel
-            path = path.with_name(f"{path.stem}_{datetime.now():%H%M%S}{path.suffix}")
-            log.warning("%s is open in Excel - saving to %s instead. Close Excel to overwrite the original next time.",
-                        BusinessRules.BUSINESS_CUSTOMERS_FILE_NAME, path.name)
-            table.to_excel(path, index=False, sheet_name="Business_korisnici")
+        table.to_excel(path, index=False, sheet_name="Business_korisnici")
         log.info("Saved: %s (%d BANs)", path, len(table))
         return path

@@ -41,21 +41,14 @@ class SuspensionsRun:
         """Processes the report and does the steps of run 1. Today is marked as done only if all of them worked."""
         try:
             result = self.report_processor.process_report(path)                             # 2. processing
-            self.send_pre_final_mail_once(result)                                          # mail 1
+            self.mail_sender.send_pre_final_mail(result.activity_date, result.mail_pre_final_text)   # mail 1
             self.business_customers_file.save(result.business_customers)                   # Business_korisnici.xlsx
             self.file_saver.save_suspensions_files(result)                                 # 3. suspensions CSV
             self.state_controller.save_pending_ivr(self.build_pending(path, result))       # the rest is for run 2
-            self.state_controller.update_daily_state(result.report_date, processed=True)
+            daily = self.state_controller.load_daily_state(result.report_date)
+            self.state_controller.save_daily_state(result.report_date, processed=True, alarm_sent=daily["alarm_sent"])
         except Exception:
             log.exception("Processing / saving failed: %s", path)
-
-    def send_pre_final_mail_once(self, result: ProcessingResult) -> None:
-        """If a later step failed and the run is repeated, mail 1 is not sent again."""
-        if self.state_controller.load_daily_state(result.report_date)["pre_final_sent"]:
-            log.info("The pre-final mail was already sent today - not sending it again.")
-            return
-        self.mail_sender.send_pre_final_mail(result.activity_date, result.mail_pre_final_text)
-        self.state_controller.update_daily_state(result.report_date, pre_final_sent=True)
 
     def build_pending(self, path: Path, result: ProcessingResult) -> PendingIvr:
         # More than 2500 suspension MSISDNs BEFORE the postponement -> the bulk mail is sent (with the final number)
