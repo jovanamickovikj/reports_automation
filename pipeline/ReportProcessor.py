@@ -124,6 +124,10 @@ class ReportProcessor:
                      len(postponed_business), int(eligible_business["BAN_Nr_msisdns"].sum()),
                      BusinessRules.MAX_OVERDUE_TO_POSTPONE_BUSINESS)
         postponed = pd.concat([postponed_residential, postponed_business])
+        log.info("Suspensions postponed: PRI %d BAN / %d MSISDN | BUS %d BAN / %d MSISDN "
+                 "(BUS are postponed only when BUS alone is above the limit %d; business total is %d)",
+                 *self.count_bans_and_msisdns(postponed_residential), *self.count_bans_and_msisdns(postponed_business),
+                 limit, int(business["BAN_Nr_msisdns"].sum()))
 
         postponed_msisdns = int(postponed["BAN_Nr_msisdns"].sum())
         if postponed_msisdns < excess:
