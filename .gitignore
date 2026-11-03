@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.idea/
+
+# Local settings and files created by the program
+.env
+report/
+pipeline.log*
+seen_reports.json
+daily_state.json
+pending_ivr.json

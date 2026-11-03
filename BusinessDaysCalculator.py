@@ -39,17 +39,6 @@ class BusinessDaysCalculator:
         d = d.date() if isinstance(d, datetime) else d
         return not self._is_special(d)
 
-    def previous_business_day(self, d):
-        """Return `d` itself if it's a business day, otherwise the closest
-        earlier business day (skips weekends and holidays). Preserves
-        date/datetime type and time-of-day, same convention as add_days.
-        """
-        was_date = not isinstance(d, datetime) and isinstance(d, date)
-        current = datetime(d.year, d.month, d.day) if was_date else d
-        while self._is_special(current.date()):
-            current -= timedelta(days=1)
-        return current.date() if was_date else current
-
     def add_days(self, start, days: int, mode: str) -> datetime:
         """Return `start` shifted by `days` business or calendar days.
 
