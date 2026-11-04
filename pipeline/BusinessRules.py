@@ -4,7 +4,7 @@
 # Limits
 # ---------------------------------------------------------------
 SUSPENSIONS_LIMIT = 3500   # max MSISDNs per day for step S3: ALL business + residential customers (sum of BAN_Nr_msisdns)
-IVR_LIMIT = 6000           # max MSISDNs per day for step M (IVR only, it is not added to SUSP)
+IVR_LIMIT = 6000           # max MSISDNs per day for step M: IVR (active) + SUSP together; only IVR is postponed
 BULK_MAIL_MSISDNS = 2500   # more suspension MSISDNs than this (before postponement) -> the "bulk" mail is sent
 MAX_OVERDUE_TO_POSTPONE_BUSINESS = 6000   # business customers with a higher BAN overdue amount (den) are never postponed
 

@@ -162,8 +162,8 @@ class ReportProcessor:
     def build_ivr_report(self, table, date_, new_date):
         """
         IVR (M): without KEY and without business, only IVR and SUSP.
-        IVR and SUSP are counted separately. The limit is for IVR only (it is not added to SUSP);
-        only IVR customers are postponed, oldest first.
+        IVR and SUSP are shown separately, but the limit covers BOTH together (IVR + SUSP MSISDNs <= limit);
+        only IVR (active) customers are postponed, oldest first. SUSP customers are never postponed.
         Returns the counts "before" and "after" the postponement and the postponed rows.
         """
         rows = table[(table["COL_ACTIVITY_CODE"] == BusinessRules.STEP_IVR) &
@@ -173,13 +173,13 @@ class ReportProcessor:
         rows_on_date = rows[rows["STEP_DATE"] == date_]
         active = rows_on_date[rows_on_date["FOLLOW_UP_TYPE"] == BusinessRules.IVR_ACTIVE]
         suspended = rows_on_date[rows_on_date["FOLLOW_UP_TYPE"] == BusinessRules.IVR_SUSPENDED]
-        active_on_new_date = rows[(rows["STEP_DATE"] == new_date) &
-                                  (rows["FOLLOW_UP_TYPE"] == BusinessRules.IVR_ACTIVE)]
+        rows_on_new_date = rows[rows["STEP_DATE"] == new_date]
 
-        excess = max(0, self.count_bans_and_msisdns(active).msisdns - BusinessRules.IVR_LIMIT)
+        total_msisdns = self.count_bans_and_msisdns(active).msisdns + self.count_bans_and_msisdns(suspended).msisdns
+        excess = max(0, total_msisdns - BusinessRules.IVR_LIMIT)
         postponed = self.pick_oldest_to_cover(active, excess)
         if excess > 0:
-            self.check_new_date("IVR", active_on_new_date, int(postponed["BAN_Nr_msisdns"].sum()),
+            self.check_new_date("IVR", rows_on_new_date, int(postponed["BAN_Nr_msisdns"].sum()),
                                 BusinessRules.IVR_LIMIT, new_date)
         suspended_counts = self.count_bans_and_msisdns(suspended)
         return {"before": {"active": self.count_bans_and_msisdns(active), "suspended": suspended_counts},

@@ -28,7 +28,7 @@ Two runs, each started separately by Windows Task Scheduler:
 - Suspensions limit **3500** MSISDN for business + residential together.
 - Above the limit: first PRI customers are postponed (oldest `Account_Act_Date` first). If that is not enough,
   BUS customers are postponed the same way, but only those with `BAN overdue amount` of at most 6000.
-- IVR limit 6000 (IVR active only, PRI only), postponed the same way.
+- IVR limit 6000 for IVR (active) + SUSP together, PRI only. Only active IVR customers are postponed (oldest first), SUSP never.
 - Activity date = next business day after the report date; postponed customers go to the business day after that.
 
 ## Setup
